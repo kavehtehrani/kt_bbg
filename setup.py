@@ -1,6 +1,7 @@
 import setuptools
 import tia
 
+# based on https://github.com/bpsmith/tia
 
 try:
     from setuptools import setup
@@ -11,20 +12,18 @@ def read_file(path):
     with open(path, 'r') as f:
         return f.read()
 
-
-AUTHOR = 'Brian P Smith'
-AUTHOR_EMAIL = 'brian.p.smith@gmail.com'
+AUTHOR = 'Kaveh tehrani'
+AUTHOR_EMAIL = 'kavehtheblacksmith@gmail.com'
 PACKAGE = 'tia'
 PACKAGE_DESC = 'Toolkit for integration and analysis'
 VERSION = tia.__version__
-URL = "https://github.com/bpsmith/tia"
+URL = "https://github.com/kavehtehrani/tia"
 REQUIRED = ['pandas', 'numpy']
 REQUIRED_FOR_TESTS = []
 
 LONG_DESC = """\
-TIA is a toolkit that provides bloomberg data access, easier pdf generation, backtesting functionality,
-technical analysis functionality, and return analysis.
-"""
+Bloomberg wrapper providing easy access to common tasks, supports both local terminal 
+and bpipe functionality seamlessly"""
 
 setuptools.setup(
     author=AUTHOR,
@@ -51,7 +50,7 @@ setuptools.setup(
         'License :: OSI Approved :: BSD License',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.7',
         'Topic :: Office/Business :: Financial',
         'Topic :: Office/Business :: Financial :: Investment',
         'Topic :: Utilities',
