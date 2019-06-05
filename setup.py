@@ -18,8 +18,8 @@ PACKAGE = 'tia'
 PACKAGE_DESC = 'Toolkit for integration and analysis'
 VERSION = tia.__version__
 URL = "https://github.com/kavehtehrani/tia"
-# REQUIRED = ['pandas', 'numpy']
-# REQUIRED_FOR_TESTS = []
+REQUIRED = ['pandas', 'numpy']
+REQUIRED_FOR_TESTS = []
 
 LONG_DESC = """\
 Bloomberg wrapper providing easy access to common tasks, supports both local terminal 
