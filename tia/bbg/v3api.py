@@ -1,10 +1,8 @@
 from collections import defaultdict, namedtuple
 from datetime import datetime
-
 import blpapi
 import pandas as pd
 import numpy as np
-
 import tia.util.log as log
 
 
@@ -12,6 +10,12 @@ SecurityErrorAttrs = ['security', 'source', 'code', 'category', 'message', 'subc
 SecurityError = namedtuple('SecurityError', SecurityErrorAttrs)
 FieldErrorAttrs = ['security', 'field', 'source', 'code', 'category', 'message', 'subcategory']
 FieldError = namedtuple('FieldError', FieldErrorAttrs)
+
+AUTHORIZATION_SUCCESS = blpapi.Name("AuthorizationSuccess")
+AUTHORIZATION_FAILURE = blpapi.Name("AuthorizationFailure")
+TOKEN_SUCCESS = blpapi.Name("TokenGenerationSuccess")
+TOKEN_FAILURE = blpapi.Name("TokenGenerationFailure")
+
 
 logger = log.get_logger(__name__)
 
@@ -183,11 +187,11 @@ class XmlHelper(object):
 
 
 def debug_event(evt):
-    print 'unhandled event: %s' % evt.EventType
+    # print 'unhandled event: %s' % evt.EventType
     if evt.EventType in [blpapi.Event.RESPONSE, blpapi.Event.PARTIAL_RESPONSE]:
-        print 'messages:'
+        print('messages:')
         for msg in XmlHelper.message_iter(evt):
-            print msg.Print
+            print(msg.Print)
 
 
 class Request(object):
@@ -225,12 +229,14 @@ class Request(object):
         raise NotImplementedError()
 
     def on_admin_event(self, evt):
+        for msg in evt:
+            logger.debug(msg)
         pass
 
     @staticmethod
     def apply_overrides(request, overrides):
         if overrides:
-            for k, v in overrides.iteritems():
+            for k, v in overrides.items():
                 o = request.getElement('overrides').appendElement()
                 o.setElement('fieldId', k)
                 o.setElement('value', v)
@@ -277,7 +283,7 @@ class HistoricalDataRequest(Request):
     fields: bbg field name(s)
     start: (optional) date, date string , or None. If None, defaults to 1 year ago.
     end: (optional) date, date string, or None. If None, defaults to today.
-    period: (optional) periodicity of data [DAILY, WEEKLY, MONTHLY, QUARTERLY, SEMI_ANNUALLY, YEARLY]
+    period: (optional) periodicity of data [DAILY, WEEKLY, MONTHLY, QUARTERLY, SEMI-ANNUAL, YEARLY]
     ignore_security_error: If True, ignore exceptions caused by invalid sids
     ignore_field_error: If True, ignore exceptions caused by invalid fields
     period_adjustment: (ACTUAL, CALENDAR, FISCAL)
@@ -300,9 +306,9 @@ class HistoricalDataRequest(Request):
         Request.__init__(self, '//blp/refdata', ignore_security_error=ignore_security_error,
                          ignore_field_error=ignore_field_error)
         period = period or 'DAILY'
-        assert period in ('DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMI_ANNUALLY', 'YEARLY')
-        self.is_single_sid = is_single_sid = isinstance(sids, basestring)
-        self.is_single_field = is_single_field = isinstance(fields, basestring)
+        assert period in ('DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMI-ANNUAL', 'YEARLY')
+        self.is_single_sid = is_single_sid = isinstance(sids, str)
+        self.is_single_field = is_single_field = isinstance(fields, str)
         self.sids = is_single_sid and [sids] or list(sids)
         self.fields = is_single_field and [fields] or list(fields)
         self.end = end = pd.to_datetime(end) if end else pd.Timestamp.now()
@@ -403,10 +409,10 @@ class ReferenceDataResponse(object):
 
     def as_frame(self):
         """ :return: Multi-Index DataFrame """
-        data = {sid: pd.Series(data) for sid, data in self.response_map.iteritems()}
+        data = {sid: pd.Series(data) for sid, data in self.response_map.items()}
         frame = pd.DataFrame.from_dict(data, orient='index')
         # layer in any missing fields just in case
-        frame = frame.reindex_axis(self.request.fields, axis=1)
+        frame = frame.reindex(self.request.fields, axis=1)
         return frame
 
 
@@ -418,10 +424,10 @@ class ReferenceDataRequest(Request):
         """
         Request.__init__(self, '//blp/refdata', ignore_security_error=ignore_security_error,
                          ignore_field_error=ignore_field_error)
-        self.is_single_sid = is_single_sid = isinstance(sids, basestring)
-        self.is_single_field = is_single_field = isinstance(fields, basestring)
-        self.sids = isinstance(sids, basestring) and [sids] or sids
-        self.fields = isinstance(fields, basestring) and [fields] or fields
+        self.is_single_sid = is_single_sid = isinstance(sids, str)
+        self.is_single_field = is_single_field = isinstance(fields, str)
+        self.sids = isinstance(sids, str) and [sids] or sids
+        self.fields = isinstance(fields, str) and [fields] or fields
         self.return_formatted_value = return_formatted_value
         self.use_utc_time = use_utc_time
         self.overrides = overrides
@@ -430,7 +436,7 @@ class ReferenceDataRequest(Request):
         fmtargs = dict(clz=self.__class__.__name__,
                        sids=','.join(self.sids),
                        fields=','.join(self.fields),
-                       overrides=','.join(['%s=%s' % (k, v) for k, v in self.overrides.iteritems()]))
+                       overrides=','.join(['%s=%s' % (k, v) for k, v in self.overrides.items()]))
         return '<{clz}([{sids}], [{fields}], overrides={overrides})'.format(**fmtargs)
 
     def new_response(self):
@@ -462,6 +468,7 @@ class ReferenceDataRequest(Request):
                     self.security_errors.append(error)
                 else:
                     self.on_security_node(node)
+       
 
 
 class IntradayTickResponse(object):
@@ -485,7 +492,7 @@ class IntradayTickRequest(Request):
         """
         Request.__init__(self, '//blp/refdata')
         self.sid = sid
-        self.events = isinstance(events, basestring) and [events] or events
+        self.events = isinstance(events, str) and [events] or events
         self.include_condition_codes = include_condition_codes
         self.include_nonplottable_events = include_nonplottable_events
         self.include_exchange_codes = include_exchange_codes
@@ -625,7 +632,7 @@ class EQSResponse(object):
 
     def as_frame(self):
         """ :return: Multi-Index DataFrame """
-        data = {sid: pd.Series(data) for sid, data in self.response_map.iteritems()}
+        data = {sid: pd.Series(data) for sid, data in self.response_map.items()}
         return pd.DataFrame.from_dict(data, orient='index')
 
 
@@ -687,10 +694,24 @@ class Terminal(object):
     object for processing.
     """
 
-    def __init__(self, host, port):
+    def __init__(self, host, port, bpipe=False, str_bpipeappname=''):
         self.host = host
         self.port = port
+        self.b_bpipe = bpipe
         self.logger = log.instance_logger(repr(self), self)
+        self.b_token = False
+
+        self.session = None
+        self.identity = None
+        self.securities = None
+        self.fields = None
+        self.b_authorized = False
+
+        if bpipe:
+            if not str_bpipeappname:
+                raise ValueError('Invalid bpipe application name')
+            else:
+                self.str_bpipeappname = str_bpipeappname
 
     def __repr__(self):
         fmtargs = dict(clz=self.__class__.__name__, host=self.host, port=self.port)
@@ -698,15 +719,55 @@ class Terminal(object):
 
     def _create_session(self):
         opts = blpapi.SessionOptions()
-        opts.setServerHost(self.host)
-        opts.setServerPort(self.port)
+
+        if self.b_bpipe:
+            opts.setServerHost(self.host)
+            opts.setServerPort(self.port)
+            opts.setAuthenticationOptions('AuthenticationMode=APPLICATION_ONLY;' + \
+                                          f'ApplicationAuthenticationType=APPNAME_AND_KEY;' + \
+                                          f'ApplicationName={self.str_bpipeappname}')
+        else:
+            opts.setServerHost(self.host)
+            opts.setServerPort(self.port)
+
         return blpapi.Session(opts)
 
     def execute(self, request):
         session = self._create_session()
+
         if not session.start():
             raise Exception('failed to start session')
 
+        # generate token
+        # if self.b_bpipe and not self.b_token:
+        if self.b_bpipe:
+            self.session = session
+            # Open reference data service
+            if not session.openService("//blp/refdata"):
+                print("Failed to open //blp/refdata")
+                return
+
+            # Open authorization service
+            if not session.openService("//blp/apiauth"):
+                print("Failed to open //blp/apiauth")
+                return
+
+            # Submit a token generation request
+            token_req_id = blpapi.CorrelationId(99)
+            session.generateToken(token_req_id)
+
+            self.b_token = False
+            self.b_authorized = False
+            while not self.b_authorized or not self.b_token:
+                event = session.nextEvent(500)
+                if event.eventType() == blpapi.Event.TOKEN_STATUS:
+                    self.b_token = self.process_token_status(event)
+                    if not self.b_token:
+                        break
+                else:
+                    if not self.process_event(event):
+                        break
+            
         try:
             self.logger.info('executing request: %s' % repr(request))
             if not session.openService(request.svcname):
@@ -716,7 +777,12 @@ class Terminal(object):
             asbbg = request.get_bbg_request(svc, session)
             # setup response capture
             request.new_response()
-            session.sendRequest(asbbg)
+
+            if self.b_bpipe:
+                session.sendRequest(asbbg, self.identity)
+            else:
+                session.sendRequest(asbbg)
+                
             while True:
                 evt = session.nextEvent(500)
                 if evt.eventType() == blpapi.Event.RESPONSE:
@@ -726,10 +792,75 @@ class Terminal(object):
                     request.on_event(evt, is_final=False)
                 else:
                     request.on_admin_event(evt)
+
             request.has_exception and request.raise_exception()
             return request.response
         finally:
             session.stop()
+
+    def process_token_status(self, event):
+        logger.debug("process_token_status")
+
+        # Handle response to token generation request
+        for msg in event:
+            if msg.messageType() == TOKEN_SUCCESS:
+                logger.debug(msg)
+
+                # Authentication phase has passed; send authorization request
+                authService = self.session.getService("//blp/apiauth")
+                authRequest = authService.createAuthorizationRequest()
+                authRequest.set("token",
+                                msg.getElementAsString("token"))
+
+                self.identity = self.session.createIdentity()
+                self.session.sendAuthorizationRequest(
+                    authRequest,
+                    self.identity,
+                    blpapi.CorrelationId(1))
+            elif msg.messageType() == TOKEN_FAILURE:
+                # Token generation failure
+                logger.debug(msg)
+                print(msg)
+                return False
+
+        return True
+    
+    def process_event(self, event):
+        # Handle response to authorization request; handle reference data
+        for msg in event:
+            if msg.messageType() == AUTHORIZATION_SUCCESS:
+                # Authorization phase has passed; request data
+                logger.debug("Authorization SUCCESS")
+                self.b_authorized = True
+            elif msg.messageType() == AUTHORIZATION_FAILURE:
+                # Authorization failure
+                print("Authorization FAILED")
+                print(msg)
+                return False
+            else:
+                # Handle reference data. RESPONSE event indicates end-of-data
+                logger.debug(msg)
+                if event.eventType() == blpapi.Event.RESPONSE:
+                    print("Got Final Response")
+                    return False
+        return True
+
+    def send_request(self):
+        ref_data_service = self.session.getService("//blp/refdata")
+        request = ref_data_service.createRequest("ReferenceDataRequest")
+
+        # Add securities to the request
+        securities = request.getElement("securities")
+        for security in self.securities:
+            securities.appendValue(security)
+
+        # Add fields to the request
+        fields = request.getElement("fields")
+        for field in self.fields:
+            fields.appendValue(field)
+
+        print("Sending request: %s" % request)
+        self.session.send_request(request, self.identity)
 
     def get_historical(self, sids, flds, start=None, end=None, period=None, ignore_security_error=0,
                        ignore_field_error=0, **overrides):
@@ -774,8 +905,8 @@ class Terminal(object):
 
 class SyncSubscription(object):
     def __init__(self, tickers, fields, interval=None, host='localhost', port=8194):
-        self.fields = isinstance(fields, basestring) and [fields] or fields
-        self.tickers = isinstance(tickers, basestring) and [tickers] or tickers
+        self.fields = isinstance(fields, str) and [fields] or fields
+        self.tickers = isinstance(tickers, str) and [tickers] or tickers
         self.interval = interval
         self.host = host
         self.port = port
